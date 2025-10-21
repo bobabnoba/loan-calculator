@@ -1,6 +1,7 @@
 package com.github.bobabnoba.loancalculator.api;
 
 import com.github.bobabnoba.loancalculator.api.dto.LoanRequestDto;
+import com.github.bobabnoba.loancalculator.api.dto.LoanResponseDto;
 import com.github.bobabnoba.loancalculator.service.LoanRequestService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -20,8 +21,8 @@ public class LoanRequestController {
 	}
 
 	@PostMapping("/calculate")
-	public ResponseEntity<Void> calculate(@Valid @RequestBody LoanRequestDto payload) {
-		service.create(payload);
-		return ResponseEntity.status(HttpStatus.CREATED).build();
+	public ResponseEntity<LoanResponseDto> calculate(@Valid @RequestBody LoanRequestDto payload) {
+		LoanResponseDto response = service.create(payload);
+		return ResponseEntity.status(HttpStatus.CREATED).body(response);
 	}
 }

@@ -1,8 +1,9 @@
 package com.github.bobabnoba.loancalculator.service;
 
 import com.github.bobabnoba.loancalculator.api.dto.LoanRequestDto;
+import com.github.bobabnoba.loancalculator.api.dto.LoanResponseDto;
 
 public interface LoanRequestService {
-	void create(LoanRequestDto dto);
+	LoanResponseDto create(LoanRequestDto dto);
 
 }
