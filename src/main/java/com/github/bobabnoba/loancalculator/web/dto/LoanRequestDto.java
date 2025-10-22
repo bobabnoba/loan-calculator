@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 public record LoanRequestDto(
-		@NotNull @DecimalMin("0.01") BigDecimal amount,
-		@NotNull @DecimalMin("0") BigDecimal annualInterestPercent,
-		@Min(1) int termMonths
-) {}
+        @NotNull @DecimalMin(value = "0.01", message = "amount must be positive") BigDecimal amount,
+        @NotNull @DecimalMin(value = "0", message = "annualInterestPercent cannot be negative") BigDecimal annualInterestPercent,
+        @Min(value = 1, message = "termMonths must be at least 1") int termMonths) {
+}

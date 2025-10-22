@@ -12,6 +12,8 @@ import com.github.bobabnoba.loancalculator.persistence.LoanRequestRepository;
 import com.github.bobabnoba.loancalculator.persistence.entity.InstallmentEntity;
 import com.github.bobabnoba.loancalculator.persistence.entity.LoanRequestEntity;
 import com.github.bobabnoba.loancalculator.application.LoanRequestService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,8 @@ import java.util.List;
 
 @Service
 public class LoanRequestServiceImpl implements LoanRequestService {
+    private static final Logger log = LoggerFactory.getLogger(LoanRequestServiceImpl.class);
+
     private final LoanRequestRepository loanRequestRepository;
     private final InstallmentRepository installmentRepository;
     private final LoanMapper mapper;
@@ -34,6 +38,8 @@ public class LoanRequestServiceImpl implements LoanRequestService {
     @Transactional
     @Override
     public LoanResponseDto create(LoanRequestDto dto) {
+        log.info("Creating schedule: amount={}, ratePct={}, termMonths={}",
+                dto.amount(), dto.annualInterestPercent(), dto.termMonths());
         LoanRequestEntity request = loanRequestRepository.save(mapper.toLoanRequestEntity(dto));
 
         LoanSpec spec = new LoanSpec(dto.amount(), dto.annualInterestPercent(), dto.termMonths());
@@ -41,6 +47,7 @@ public class LoanRequestServiceImpl implements LoanRequestService {
 
         List<InstallmentEntity> rows = mapper.toInstallmentEntities(request, schedule.installments());
         installmentRepository.saveAll(rows);
+        log.info("Created schedule requestId={} installments={}", request.getId(), rows.size());
 
         List<InstallmentDto> installmentDtos = mapper.toInstallmentDtos(rows);
         return new LoanResponseDto(request.getId(), schedule.monthlyPayment(), schedule.totalInterest(), schedule.totalCost(), installmentDtos);
