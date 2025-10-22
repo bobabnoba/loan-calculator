@@ -1,4 +1,4 @@
-package com.github.bobabnoba.loancalculator.api.dto;
+package com.github.bobabnoba.loancalculator.web.dto;
 
 import java.math.BigDecimal;
 import java.util.List;

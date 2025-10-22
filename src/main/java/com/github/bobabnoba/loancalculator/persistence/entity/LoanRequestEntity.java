@@ -1,4 +1,4 @@
-package com.github.bobabnoba.loancalculator.domain;
+package com.github.bobabnoba.loancalculator.persistence.entity;
 
 import jakarta.persistence.*;
 
@@ -8,7 +8,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "loan_requests")
-public class LoanRequest {
+public class LoanRequestEntity {
 
 	@Id
 	@GeneratedValue
@@ -26,10 +26,10 @@ public class LoanRequest {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
 
-	private LoanRequest() {
+	private LoanRequestEntity() {
 	}
 
-	public LoanRequest(BigDecimal amount, BigDecimal annualInterestPercent, int termMonths) {
+	public LoanRequestEntity(BigDecimal amount, BigDecimal annualInterestPercent, int termMonths) {
 		this.amount = amount;
 		this.annualInterestPercent = annualInterestPercent;
 		this.termMonths = termMonths;

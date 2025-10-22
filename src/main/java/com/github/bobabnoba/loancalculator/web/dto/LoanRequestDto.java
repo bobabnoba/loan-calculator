@@ -1,4 +1,4 @@
-package com.github.bobabnoba.loancalculator.api.dto;
+package com.github.bobabnoba.loancalculator.web.dto;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;

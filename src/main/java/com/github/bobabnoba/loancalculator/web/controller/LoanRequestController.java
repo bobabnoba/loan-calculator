@@ -1,8 +1,8 @@
-package com.github.bobabnoba.loancalculator.api;
+package com.github.bobabnoba.loancalculator.web.controller;
 
-import com.github.bobabnoba.loancalculator.api.dto.LoanRequestDto;
-import com.github.bobabnoba.loancalculator.api.dto.LoanResponseDto;
-import com.github.bobabnoba.loancalculator.service.LoanRequestService;
+import com.github.bobabnoba.loancalculator.web.dto.LoanRequestDto;
+import com.github.bobabnoba.loancalculator.web.dto.LoanResponseDto;
+import com.github.bobabnoba.loancalculator.application.LoanRequestService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
