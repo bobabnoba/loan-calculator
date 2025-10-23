@@ -13,81 +13,106 @@ import java.util.List;
 
 public final class AmortizationScheduleCalculator implements ScheduleCalculator {
 
-    private static final MathContext CALCULATION_CONTEXT = new MathContext(34, RoundingMode.HALF_EVEN);
+    private static final int SCALE_CENTS = 2;
+    private static final RoundingMode ROUNDING = RoundingMode.HALF_EVEN;
+    private static final MathContext MATH_CONTEXT = new MathContext(34, ROUNDING);
 
     @Override
     public RepaymentSchedule calculate(LoanSpec spec) {
-        BigDecimal principal = spec.amount();
-        if (principal == null || principal.signum() <= 0) throw new InvalidLoanSpecException("amount must be > 0");
+        validate(spec);
 
-        BigDecimal annualInterestRate = spec.annualRatePercentage();
-        if (annualInterestRate == null || annualInterestRate.signum() < 0)
-            throw new InvalidLoanSpecException("annualInterestRate must be >= 0");
+        BigDecimal principalAmount = spec.amount();
+        BigDecimal annualRatePercent = spec.annualRatePercentage();
+        int termMonths = spec.termMonths();
 
-        int numberOfMonths = spec.termMonths();
-        if (numberOfMonths <= 0) throw new InvalidLoanSpecException("termMonths must be > 0");
         try {
-            BigDecimal monthlyInterestRate = annualInterestRate.divide(BigDecimal.valueOf(1200), CALCULATION_CONTEXT);
+            BigDecimal monthlyRate = monthlyRateFromAnnualPercent(annualRatePercent);
+            BigDecimal monthlyPayment = computeMonthlyPayment(principalAmount, monthlyRate, termMonths);
 
-            BigDecimal monthlyPayment;
-            if (annualInterestRate.signum() == 0) {
-                monthlyPayment = principal.divide(BigDecimal.valueOf(numberOfMonths), 2, RoundingMode.HALF_EVEN);
-            } else {
-                BigDecimal onePlusRate = BigDecimal.ONE.add(monthlyInterestRate, CALCULATION_CONTEXT);
-                BigDecimal discountFactor = BigDecimal.ONE.subtract(pow(onePlusRate, -numberOfMonths), CALCULATION_CONTEXT);
-                monthlyPayment = principal.multiply(monthlyInterestRate, CALCULATION_CONTEXT).divide(discountFactor, 2, RoundingMode.HALF_EVEN);
-            }
+            List<Installment> installments = buildSchedule(principalAmount, monthlyRate, monthlyPayment, termMonths);
+            BigDecimal totalInterest = installments.stream().map(Installment::interest).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(SCALE_CENTS, ROUNDING);
 
-            List<Installment> installments = new ArrayList<>(numberOfMonths);
-            BigDecimal remainingBalance = principal;
-            BigDecimal totalInterestPaid = BigDecimal.ZERO;
+            BigDecimal totalCost = principalAmount.add(totalInterest).setScale(SCALE_CENTS, ROUNDING);
 
-            for (int month = 1; month <= numberOfMonths; month++) {
-                BigDecimal interestPayment = remainingBalance.multiply(monthlyInterestRate, CALCULATION_CONTEXT).setScale(2, RoundingMode.HALF_EVEN);
+            return new RepaymentSchedule(monthlyPayment, totalInterest, totalCost, List.copyOf(installments));
 
-                BigDecimal principalPayment = monthlyPayment.subtract(interestPayment).setScale(2, RoundingMode.HALF_EVEN);
-
-                BigDecimal newBalance = remainingBalance.subtract(principalPayment, CALCULATION_CONTEXT);
-
-                if (month == numberOfMonths) {
-                    BigDecimal roundingDifference = newBalance.setScale(2, RoundingMode.HALF_EVEN);
-                    if (roundingDifference.compareTo(BigDecimal.ZERO) != 0) {
-                        principalPayment = principalPayment.add(roundingDifference);
-                        newBalance = newBalance.subtract(roundingDifference, CALCULATION_CONTEXT);
-                    }
-                }
-
-                BigDecimal totalMonthlyPayment = principalPayment.add(interestPayment).setScale(2, RoundingMode.HALF_EVEN);
-
-                installments.add(new Installment(month, interestPayment, principalPayment, totalMonthlyPayment, newBalance.setScale(2, RoundingMode.HALF_EVEN)));
-
-                totalInterestPaid = totalInterestPaid.add(interestPayment);
-                remainingBalance = newBalance;
-            }
-
-            BigDecimal totalCost = principal.add(totalInterestPaid).setScale(2, RoundingMode.HALF_EVEN);
-
-            return new RepaymentSchedule(monthlyPayment, totalInterestPaid.setScale(2, RoundingMode.HALF_EVEN), totalCost, List.copyOf(installments));
         } catch (ArithmeticException ae) {
-            throw new InvalidLoanSpecException("Numeric error during schedule calculation: " + ae.getMessage());
+            throw new InvalidLoanSpecException("numeric error during schedule calculation: " + ae.getMessage());
         }
+    }
+
+    private static void validate(LoanSpec spec) {
+        BigDecimal principal = spec.amount();
+        if (principal == null || principal.signum() <= 0) {
+            throw new InvalidLoanSpecException("amount must be > 0");
+        }
+
+        BigDecimal annualPercent = spec.annualRatePercentage();
+        if (annualPercent == null || annualPercent.signum() < 0) {
+            throw new InvalidLoanSpecException("annualInterestRate must be >= 0");
+        }
+
+        if (spec.termMonths() <= 0) {
+            throw new InvalidLoanSpecException("termMonths must be > 0");
+        }
+    }
+
+    private static BigDecimal monthlyRateFromAnnualPercent(BigDecimal annualPercent) {
+        return annualPercent.divide(BigDecimal.valueOf(1200), MATH_CONTEXT);
+    }
+
+    private static BigDecimal computeMonthlyPayment(BigDecimal principal, BigDecimal monthlyRate, int termMonths) {
+        if (monthlyRate.signum() == 0) {
+            return principal.divide(BigDecimal.valueOf(termMonths), SCALE_CENTS, ROUNDING);
+        }
+        BigDecimal onePlus = BigDecimal.ONE.add(monthlyRate, MATH_CONTEXT);
+        BigDecimal denominator = BigDecimal.ONE.subtract(pow(onePlus, -termMonths), MATH_CONTEXT);
+        return principal.multiply(monthlyRate, MATH_CONTEXT).divide(denominator, SCALE_CENTS, ROUNDING);
+    }
+
+    private static List<Installment> buildSchedule(BigDecimal principal, BigDecimal monthlyRate, BigDecimal monthlyPayment, int termMonths) {
+        List<Installment> rows = new ArrayList<>(termMonths);
+        BigDecimal remaining = principal;
+
+        for (int month = 1; month <= termMonths; month++) {
+            BigDecimal interestPortion = cents(remaining.multiply(monthlyRate, MATH_CONTEXT));
+            BigDecimal principalPortion = cents(monthlyPayment.subtract(interestPortion));
+            BigDecimal newBalance = remaining.subtract(principalPortion, MATH_CONTEXT);
+
+            if (month == termMonths) {
+                BigDecimal residue = cents(newBalance);
+                if (residue.compareTo(BigDecimal.ZERO) != 0) {
+                    principalPortion = principalPortion.add(residue);
+                    newBalance = newBalance.subtract(residue, MATH_CONTEXT);
+                }
+            }
+
+            BigDecimal totalThisMonth = cents(principalPortion.add(interestPortion));
+            rows.add(new Installment(month, interestPortion, principalPortion, totalThisMonth, cents(newBalance)));
+
+            remaining = newBalance;
+        }
+
+        return rows;
     }
 
     private static BigDecimal pow(BigDecimal base, int exponent) {
         if (exponent == 0) return BigDecimal.ONE;
-        boolean negative = exponent < 0;
-        int power = Math.abs(exponent);
+        boolean neg = exponent < 0;
+        int e = Math.abs(exponent);
 
         BigDecimal result = BigDecimal.ONE;
-        BigDecimal currentBase = base;
+        BigDecimal b = base;
 
-        while (power > 0) {
-            if ((power & 1) == 1) result = result.multiply(currentBase, CALCULATION_CONTEXT);
-            currentBase = currentBase.multiply(currentBase, CALCULATION_CONTEXT);
-            power >>= 1;
+        while (e > 0) {
+            if ((e & 1) == 1) result = result.multiply(b, MATH_CONTEXT);
+            b = b.multiply(b, MATH_CONTEXT);
+            e >>= 1;
         }
-
-        return negative ? BigDecimal.ONE.divide(result, CALCULATION_CONTEXT) : result;
+        return neg ? BigDecimal.ONE.divide(result, MATH_CONTEXT) : result;
     }
 
+    private static BigDecimal cents(BigDecimal v) {
+        return v.setScale(SCALE_CENTS, ROUNDING);
+    }
 }
